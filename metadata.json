@@ -1,0 +1,10 @@
+{
+  "name": "Remix: Remix: Pasar UMKM Tegalsari",
+  "description": "Marketplace Multivendor UMKM Lokal tingkat Desa/Kelurahan Tegalsari dengan fitur Kurir Mandiri, Sistem Afiliasi, Pembayaran COD, dan Peta Koordinat Pengiriman.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "short_name": "Pasar Tegalsari",
+  "name": "Pasar UMKM Tegalsari",
+  "description": "Marketplace Multivendor UMKM Desa Tegalsari, Banyuwangi",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=192",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=512",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#10b981",
+  "theme_color": "#10b981",
+  "display": "standalone",
+  "orientation": "portrait"
+}

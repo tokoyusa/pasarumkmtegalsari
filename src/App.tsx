@@ -270,19 +270,6 @@ export default function App() {
 
     // 3. Client-side simulation sandbox mode fallback (ensures it NEVER fails)
     console.log('[Pakasir Simulation] Activating sandbox payment simulation for', order_id);
-    
-    // Auto-complete simulated order status update in Supabase
-    try {
-      if (String(order_id).startsWith('UPGRADE_')) {
-        // Handled in upgrade modal
-      } else if (String(order_id).startsWith('MEMB_')) {
-        // Handled in membership modal
-      } else {
-        await db.updateOrderStatus(order_id, 'processing');
-      }
-    } catch (dbErr) {
-      console.error('[Simulation DB Update Error]', dbErr);
-    }
 
     // Return a beautiful mock payment structure
     const expiryDate = new Date();
@@ -363,6 +350,14 @@ export default function App() {
       } catch (directErr) {
         console.error('[Direct Status Check Exception]', directErr);
       }
+    }
+
+    // Check if the user actually has a real Pakasir config enabled and filled.
+    // If yes, we must NOT auto-complete/simulate success! We return false (still pending/unpaid).
+    const isConfigured = appSettings?.pakasir_enabled && appSettings?.pakasir_api_key && appSettings?.pakasir_api_key !== 'xxx123' && appSettings?.pakasir_api_key.trim() !== '';
+    if (isConfigured) {
+      console.log('[Pakasir Status] Real mode active. Return false (pending).');
+      return false;
     }
 
     // Sandbox/simulation mode - immediately mark complete
@@ -4259,16 +4254,28 @@ export default function App() {
                           await refreshOrders();
                           alert('Simulasi pembayaran sukses berhasil (Mode Lokal)! Status pesanan Anda telah diperbarui.');
                         } else {
-                          const res = await fetch('/api/pakasir/simulate', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              order_id: activePakasirPayment.order_id,
-                              amount: activePakasirPayment.original_amount || activePakasirPayment.amount
-                            })
-                          });
-                          const data = await res.json();
-                          alert('Simulasi pembayaran berhasil dikirim! Silakan klik "Cek Status Pembayaran" atau tunggu beberapa saat agar terverifikasi otomatis.');
+                          try {
+                            const res = await fetch('/api/pakasir/simulate', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                order_id: activePakasirPayment.order_id,
+                                amount: activePakasirPayment.original_amount || activePakasirPayment.amount
+                              })
+                            });
+                            const text = await res.text();
+                            const data = JSON.parse(text);
+                            if (data && data.success) {
+                              alert('Simulasi pembayaran berhasil dikirim! Silakan klik "Cek Status Pembayaran" atau tunggu beberapa saat agar terverifikasi otomatis.');
+                              return;
+                            }
+                            throw new Error(data.message || 'Server error');
+                          } catch (simulateErr) {
+                            console.warn('[Server simulation failed, updating Supabase directly client-side]', simulateErr);
+                            await db.updateOrderStatus(activePakasirPayment.order_id, 'processing');
+                            await refreshOrders();
+                            alert('Simulasi pembayaran sukses berhasil (Direct Supabase Fallback)! Status pesanan Anda telah diperbarui.');
+                          }
                         }
                       } catch (err: any) {
                         alert('Gagal mengirim simulasi: ' + err.message);

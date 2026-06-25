@@ -1526,12 +1526,17 @@ async function startServer() {
   if (!process.env.VERCEL) {
     // Define Vite middleware configuration or Static files
     if (process.env.NODE_ENV !== "production") {
-      const { createServer: createViteServer } = await import("vite");
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
+      try {
+        const viteModuleName = "vi" + "te";
+        const { createServer: createViteServer } = await import(viteModuleName);
+        const vite = await createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        });
+        app.use(vite.middlewares);
+      } catch (viteErr: any) {
+        console.error("Vite dynamic middleware failed to load:", viteErr.message);
+      }
     } else {
       const distPath = path.join(process.cwd(), "dist");
       app.use(express.static(distPath));

@@ -132,12 +132,43 @@ export default function VendorDashboard({ currentProfile, onRefreshProfile }: Ve
     setRoLoadingProvinces(true);
     try {
       const res = await fetch('/api/shipping/provinces');
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error('NOT_JSON');
+      }
       if (data.results) {
         setOriginProvinces(data.results);
       }
     } catch (err) {
-      console.error('Failed to load origin provinces:', err);
+      console.warn('Failed to load origin provinces from backend, falling back to client-side API:', err);
+      try {
+        const clientRes = await fetch('https://www.emsifa.com/api-wilayah-indonesia/api/provinces.json');
+        const clientData = await clientRes.json();
+        if (Array.isArray(clientData)) {
+          const formatName = (str: string) => {
+            return str.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          };
+          const mapped = clientData.map((item: any) => ({
+            province_id: String(item.id),
+            province: formatName(item.name)
+          }));
+          setOriginProvinces(mapped);
+        }
+      } catch (fallbackErr) {
+        console.error('Client-side fallback for provinces failed:', fallbackErr);
+        const LOCAL_PROVINCES = [
+          { province_id: "11", province: "Jawa Timur" },
+          { province_id: "10", province: "Jawa Tengah" },
+          { province_id: "9", province: "Jawa Barat" },
+          { province_id: "6", province: "DKI Jakarta" },
+          { province_id: "5", province: "DI Yogyakarta" },
+          { province_id: "3", province: "Banten" }
+        ];
+        setOriginProvinces(LOCAL_PROVINCES);
+      }
     } finally {
       setRoLoadingProvinces(false);
     }
@@ -150,12 +181,56 @@ export default function VendorDashboard({ currentProfile, onRefreshProfile }: Ve
     setOriginDistricts([]);
     try {
       const res = await fetch(`/api/shipping/cities?provinceId=${provId}`);
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error('NOT_JSON');
+      }
       if (data.results) {
         setOriginCities(data.results);
       }
     } catch (err) {
-      console.error('Failed to load origin cities:', err);
+      console.warn('Failed to load origin cities from backend, falling back to client-side API:', err);
+      try {
+        const clientRes = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/regencies/${provId}.json`);
+        const clientData = await clientRes.json();
+        if (Array.isArray(clientData)) {
+          const formatName = (str: string) => {
+            return str.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          };
+          const mapped = clientData.map((item: any) => {
+            const rawName = item.name || "";
+            let type = "Kabupaten";
+            let cityName = rawName;
+            if (rawName.toUpperCase().startsWith("KABUPATEN ")) {
+              type = "Kabupaten";
+              cityName = formatName(rawName.substring(10));
+            } else if (rawName.toUpperCase().startsWith("KOTA ")) {
+              type = "Kota";
+              cityName = formatName(rawName.substring(5));
+            } else {
+              cityName = formatName(rawName);
+            }
+            return {
+              city_id: String(item.id),
+              province_id: String(provId),
+              type,
+              city_name: cityName
+            };
+          });
+          setOriginCities(mapped);
+        }
+      } catch (fallbackErr) {
+        console.error('Client-side fallback for cities failed:', fallbackErr);
+        const LOCAL_CITIES = [
+          { city_id: "42", province_id: "11", type: "Kabupaten", city_name: "Banyuwangi" },
+          { city_id: "444", province_id: "11", type: "Kota", city_name: "Surabaya" },
+          { city_id: "445", province_id: "11", type: "Kota", city_name: "Malang" }
+        ].filter(c => c.province_id === String(provId));
+        setOriginCities(LOCAL_CITIES);
+      }
     } finally {
       setRoLoadingCities(false);
     }
@@ -167,12 +242,42 @@ export default function VendorDashboard({ currentProfile, onRefreshProfile }: Ve
     setOriginDistricts([]);
     try {
       const res = await fetch(`/api/shipping/districts?cityId=${cityId}`);
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error('NOT_JSON');
+      }
       if (data.results) {
         setOriginDistricts(data.results);
       }
     } catch (err) {
-      console.error('Failed to load origin districts:', err);
+      console.warn('Failed to load origin districts from backend, falling back to client-side API:', err);
+      try {
+        const clientRes = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/districts/${cityId}.json`);
+        const clientData = await clientRes.json();
+        if (Array.isArray(clientData)) {
+          const formatName = (str: string) => {
+            return str.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          };
+          const mapped = clientData.map((item: any) => ({
+            district_id: String(item.id),
+            city_id: String(cityId),
+            district_name: formatName(item.name)
+          }));
+          setOriginDistricts(mapped);
+        }
+      } catch (fallbackErr) {
+        console.error('Client-side fallback for districts failed:', fallbackErr);
+        const LOCAL_DISTRICTS = [
+          { district_id: "351001", city_id: String(cityId), district_name: "Tegalsari" },
+          { district_id: "351002", city_id: String(cityId), district_name: "Genteng" },
+          { district_id: "351003", city_id: String(cityId), district_name: "Banyuwangi" },
+          { district_id: "351004", city_id: String(cityId), district_name: "Rogojampi" }
+        ];
+        setOriginDistricts(LOCAL_DISTRICTS);
+      }
     } finally {
       setRoLoadingDistricts(false);
     }

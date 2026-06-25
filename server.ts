@@ -1611,28 +1611,28 @@ app.use((req, res, next) => {
   });
 
 async function startServer() {
-  if (!process.env.VERCEL) {
-    // Define Vite middleware configuration or Static files
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        const viteModuleName = "vi" + "te";
-        const { createServer: createViteServer } = await import(viteModuleName);
-        const vite = await createViteServer({
-          server: { middlewareMode: true },
-          appType: "spa",
-        });
-        app.use(vite.middlewares);
-      } catch (viteErr: any) {
-        console.error("Vite dynamic middleware failed to load:", viteErr.message);
-      }
-    } else {
-      const distPath = path.join(process.cwd(), "dist");
-      app.use(express.static(distPath));
-      app.get("*", (req, res) => {
-        res.sendFile(path.join(distPath, "index.html"));
+  // Define Vite middleware configuration or Static files
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    try {
+      const viteModuleName = "vi" + "te";
+      const { createServer: createViteServer } = await import(viteModuleName);
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
       });
+      app.use(vite.middlewares);
+    } catch (viteErr: any) {
+      console.error("Vite dynamic middleware failed to load:", viteErr.message);
     }
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
 
+  if (!process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`[Express UMKM Server] Running fullstack server on port ${PORT}`);
     });

@@ -29,8 +29,8 @@ app.use(express.urlencoded({ extended: true }));
     const sandboxProject = "pasar-tegalsari";
 
     // Detect if server-side environment variables have custom configurations (e.g., set on Vercel Dashboard)
-    const envApiKey = process.env.PAKASIR_API_KEY;
-    const envProjectName = process.env.PAKASIR_PROJECT_NAME || process.env.PAKASIR_MERCHANT_ID || process.env.PAKASIR_PROJECT || process.env.PAKASIR_MERCHANT;
+    const envApiKey = process.env.PAKASIR_API_KEY || process.env.PAKASIR_APIKEY || process.env.API_KEY_PAKASIR;
+    const envProjectName = process.env.PAKASIR_PROJECT_NAME || process.env.PAKASIR_MERCHANT_ID || process.env.PAKASIR_MERCHAND_ID || process.env.PAKASIR_PROJECT || process.env.PAKASIR_MERCHANT || process.env.PAKASIR_MERCHAND;
 
     const hasServerCustomConfig = envApiKey && envApiKey.trim() !== "" && envApiKey !== sandboxKey;
 

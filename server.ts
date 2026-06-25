@@ -79,6 +79,27 @@ app.use(express.urlencoded({ extended: true }));
     };
   }
 
+  // API: Debug Pakasir Config
+  app.get("/api/pakasir/debug-config", async (req, res) => {
+    try {
+      const config = await getPakasirConfig();
+      const maskedKey = config.apiKey 
+        ? (config.apiKey.length > 6 
+            ? `${config.apiKey.slice(0, 3)}...${config.apiKey.slice(-3)}` 
+            : "***")
+        : "none";
+      return res.json({
+        success: true,
+        project: config.project,
+        enabled: config.enabled,
+        apiKeyMasked: maskedKey,
+        apiKeyLength: config.apiKey ? config.apiKey.length : 0
+      });
+    } catch (err: any) {
+      return res.json({ success: false, error: err.message });
+    }
+  });
+
   // API: Transaction create proxy
   app.post("/api/pakasir/create", async (req, res) => {
     const { method, order_id, amount } = req.body;
@@ -535,20 +556,21 @@ app.use(express.urlencoded({ extended: true }));
     return res.json({ order_id, completed: false, source: "checked_failed" });
   });
 
-  // Webhook Receiver (Extremely resilient to match any format with route-level raw/text fallback parsing)
-  app.post("/api/pakasir/webhook", express.text({ type: "*/*" }), async (req, res) => {
+  // Webhook Receiver (Extremely resilient to match any format, supporting both POST and GET, and multiple route path variations)
+  const handleWebhookRequest = async (req: any, res: any) => {
+    console.log("[Pakasir Webhook] Received request method:", req.method);
     console.log("[Pakasir Webhook] Raw headers:", req.headers);
     console.log("[Pakasir Webhook] Received webhook payload/body:", req.body);
     console.log("[Pakasir Webhook] Received webhook query:", req.query);
 
-    // Resilience helper for parsing raw text / buffer / strings / objects
     let payload = req.body || {};
+    
+    // If body is a string or buffer, parse it
     if (typeof payload === "string" && payload.trim().length > 0) {
       try {
         payload = JSON.parse(payload);
       } catch (e) {
         console.error("[Pakasir Webhook] Failed to parse string body as JSON:", e);
-        // Fallback to form url-encoded parsing if needed
         try {
           const params = new URLSearchParams(payload);
           const formObj: any = {};
@@ -559,6 +581,12 @@ app.use(express.urlencoded({ extended: true }));
         } catch (formErr) {
           console.error("[Pakasir Webhook] Failed to parse string body as form-url-encoded:", formErr);
         }
+      }
+    } else if (Buffer.isBuffer(payload)) {
+      try {
+        payload = JSON.parse(payload.toString());
+      } catch (e) {
+        console.error("[Pakasir Webhook] Failed to parse Buffer body as JSON:", e);
       }
     }
 
@@ -585,7 +613,17 @@ app.use(express.urlencoded({ extended: true }));
     }
 
     return res.json({ success: true, message: "Webhook processed successfully", order_id: clean_id, is_success: isSuccess });
-  });
+  };
+
+  const webhookPaths = [
+    "/api/pakasir/webhook",
+    "/api/pakasir/notification",
+    "/api/pakasir/callback",
+    "/api/pakasir/notification/callback"
+  ];
+
+  app.post(webhookPaths, handleWebhookRequest);
+  app.get(webhookPaths, handleWebhookRequest);
 
   // Complete list of Indonesian Provinces (RajaOngkir mapped IDs)
   const PROVINCES_DATA = [

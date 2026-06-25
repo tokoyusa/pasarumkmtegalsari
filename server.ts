@@ -187,27 +187,44 @@ app.use(express.urlencoded({ extended: true }));
 
     try {
       const config = await getPakasirConfig(project, api_key);
-      console.log(`[Pakasir Proxy] Creating transaction for order ${order_id}, method: ${method}, project: ${config.project}`);
+      const cleanProject = String(config.project || "").trim();
+      const cleanApiKey = String(config.apiKey || "").trim();
+      const roundedAmount = Math.round(Number(amount));
+
+      console.log(`[Pakasir Proxy] Creating transaction for order ${order_id}, method: ${method}, project: ${cleanProject}`);
 
       const response = await fetch(`https://app.pakasir.com/api/transactioncreate/${method}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          project: config.project,
-          order_id: order_id,
-          amount: Number(amount),
-          api_key: config.apiKey
+          project: cleanProject,
+          order_id: String(order_id).trim(),
+          amount: roundedAmount,
+          api_key: cleanApiKey
         })
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        data = { rawResponse: responseText };
+      }
+
       console.log(`[Pakasir Proxy] Response status: ${response.status}`, data);
 
       if (!response.ok) {
         return res.status(response.status).json({
           success: false,
-          message: data.message || "Failed to create Pakasir transaction",
-          error: data
+          message: data.message || `Failed to create Pakasir transaction (Status: ${response.status})`,
+          error: data,
+          requestDetails: {
+            project: cleanProject,
+            order_id: String(order_id).trim(),
+            amount: roundedAmount,
+            api_key: cleanApiKey ? `${cleanApiKey.slice(0, 4)}...` : null
+          }
         });
       }
 
@@ -227,21 +244,40 @@ app.use(express.urlencoded({ extended: true }));
 
     try {
       const config = await getPakasirConfig(project, api_key);
-      console.log(`[Pakasir Proxy] Simulating payment for order ${order_id}, amount: ${amount}, project: ${config.project}`);
+      const cleanProject = String(config.project || "").trim();
+      const cleanApiKey = String(config.apiKey || "").trim();
+      const roundedAmount = Math.round(Number(amount));
+
+      console.log(`[Pakasir Proxy] Simulating payment for order ${order_id}, amount: ${amount}, project: ${cleanProject}`);
 
       const response = await fetch(`https://app.pakasir.com/api/paymentsimulation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          project: config.project,
-          order_id: order_id,
-          amount: Number(amount),
-          api_key: config.apiKey
+          project: cleanProject,
+          order_id: String(order_id).trim(),
+          amount: roundedAmount,
+          api_key: cleanApiKey
         })
       });
 
-      const data = await response.json();
-      console.log(`[Pakasir Proxy] Simulation Response:`, data);
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        data = { rawResponse: responseText };
+      }
+
+      console.log(`[Pakasir Proxy] Simulation Response status: ${response.status}`, data);
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          message: data.message || `Failed to simulate Pakasir payment (Status: ${response.status})`,
+          error: data
+        });
+      }
 
       // Instantly register the simulated transaction in memory for immediate UI response
       const cleanSimId = order_id.toString().trim();
@@ -265,18 +301,37 @@ app.use(express.urlencoded({ extended: true }));
 
     try {
       const config = await getPakasirConfig(project, api_key);
+      const cleanProject = String(config.project || "").trim();
+      const cleanApiKey = String(config.apiKey || "").trim();
+      const roundedAmount = Math.round(Number(amount));
+
       const response = await fetch(`https://app.pakasir.com/api/transactioncancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          project: config.project,
-          order_id: order_id,
-          amount: Number(amount),
-          api_key: config.apiKey
+          project: cleanProject,
+          order_id: String(order_id).trim(),
+          amount: roundedAmount,
+          api_key: cleanApiKey
         })
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        data = { rawResponse: responseText };
+      }
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          message: data.message || `Failed to cancel Pakasir transaction (Status: ${response.status})`,
+          error: data
+        });
+      }
+
       return res.json({ success: true, data });
     } catch (err: any) {
       console.error("[Pakasir Proxy Error] Failed to cancel transaction:", err.message);
@@ -598,13 +653,17 @@ app.use(express.urlencoded({ extended: true }));
       const clientProject = req.query.project as string | undefined;
       const clientApiKey = req.query.api_key as string | undefined;
       const config = await getPakasirConfig(clientProject, clientApiKey);
-      console.log(`[Pakasir Status Checker] Proactively querying Pakasir Detail API for order ${order_id} with amount ${amount}...`);
+      const cleanProject = String(config.project || "").trim();
+      const cleanApiKey = String(config.apiKey || "").trim();
+      const roundedAmount = Math.round(Number(amount));
+
+      console.log(`[Pakasir Status Checker] Proactively querying Pakasir Detail API for order ${order_id} with amount ${roundedAmount}...`);
       
       const queryParams = new URLSearchParams({
-        project: config.project,
-        amount: String(Math.round(amount)),
-        order_id: order_id,
-        api_key: config.apiKey
+        project: cleanProject,
+        amount: String(roundedAmount),
+        order_id: String(order_id).trim(),
+        api_key: cleanApiKey
       });
 
       const url = `https://app.pakasir.com/api/transactiondetail?${queryParams.toString()}`;

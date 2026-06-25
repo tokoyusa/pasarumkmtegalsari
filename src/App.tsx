@@ -744,6 +744,60 @@ export default function App() {
     };
   }, [showPakasirPaymentModal, activePakasirPayment, currentProfile]);
 
+  // Auto poll upgrade payment status in background when active
+  useEffect(() => {
+    let intervalId: any;
+    if (upgradeActivePayment?.order_id && upgradePayStatus !== 'paid') {
+      intervalId = setInterval(async () => {
+        try {
+          const completed = await handleCheckPakasirStatus(
+            upgradeActivePayment.order_id, 
+            upgradeActivePayment.original_amount
+          );
+          if (completed) {
+            setUpgradePayStatus('paid');
+            setUiMessage({ text: 'Selamat! Pembayaran Upgrade Anda telah terverifikasi secara otomatis oleh sistem Pakasir.', type: 'success' });
+            setTimeout(() => setUiMessage(null), 10000);
+          }
+        } catch (err) {
+          console.error('Error polling upgrade status:', err);
+        }
+      }, 3000);
+    }
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [upgradeActivePayment, upgradePayStatus]);
+
+  // Auto poll vendor registration payment status in background when active
+  useEffect(() => {
+    let intervalId: any;
+    if (vendorMembActivePayment?.order_id && vendorMembPayStatus !== 'paid') {
+      intervalId = setInterval(async () => {
+        try {
+          const completed = await handleCheckPakasirStatus(
+            vendorMembActivePayment.order_id, 
+            vendorMembActivePayment.original_amount
+          );
+          if (completed) {
+            setVendorMembPayStatus('paid');
+            setUiMessage({ text: 'Selamat! Pembayaran Keanggotaan Anda telah terverifikasi secara otomatis oleh sistem Pakasir.', type: 'success' });
+            setTimeout(() => setUiMessage(null), 10000);
+          }
+        } catch (err) {
+          console.error('Error polling vendor membership status:', err);
+        }
+      }, 3000);
+    }
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [vendorMembActivePayment, vendorMembPayStatus]);
+
 
 
   // Affiliate context
@@ -4263,20 +4317,31 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Direct Pakasir URL Integration Button as an alternative option */}
-                <div className="pt-2">
+                {/* Inline Automatic Status Banner */}
+                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3 text-center space-y-1">
+                  <div className="flex items-center justify-center gap-2 text-emerald-800 text-[11px] font-black tracking-wide uppercase">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    Pembayaran Langsung Di Sini
+                  </div>
+                  <p className="text-[10px] text-emerald-700 leading-relaxed font-medium">
+                    Silakan selesaikan pembayaran. Sistem kami memantau dan memverifikasi transaksi Anda <strong>secara otomatis setiap 3 detik</strong> tanpa perlu keluar dari aplikasi Pasar Tegalsari.
+                  </p>
+                </div>
+
+                {/* Direct Pakasir URL Integration Link as a fallback option only */}
+                <div className="pt-1 text-center">
                   <a
                     href={`https://app.pakasir.com/pay/${appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari'}/${Math.round(activePakasirPayment.original_amount || activePakasirPayment.amount)}?order_id=${activePakasirPayment.order_id}&redirect=${encodeURIComponent(window.location.origin)}${activePakasirPayment.payment_method === 'qris' ? '&qris_only=1' : ''}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer text-center text-xs"
+                    className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 hover:text-emerald-700 hover:underline bg-slate-100 hover:bg-slate-200/80 px-3 py-2 rounded-xl transition cursor-pointer"
                   >
-                    <ExternalLink className="w-4 h-4" />
-                    Buka Halaman Pembayaran Resmi (Rekomendasi)
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Gunakan Link Alternatif (Jika QRIS/VA di atas bermasalah)
                   </a>
-                  <p className="text-[9.5px] text-slate-500 text-center mt-1.5 leading-relaxed">
-                    *Gunakan tombol di atas jika Anda ingin membayar langsung dari gerbang pembayaran resmi Pakasir dengan opsi e-wallet / m-banking lengkap.
-                  </p>
                 </div>
               </div>
 

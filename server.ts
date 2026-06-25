@@ -44,6 +44,7 @@ app.use(express.urlencoded({ extended: true }));
           const data = await response.json();
           if (data && data.length > 0) {
             const settings = data[0];
+            let extra: any = {};
             let aboutUs = settings.about_us || '';
             const tagStartIndex = aboutUs.lastIndexOf('[METADATA_JSON:');
             if (tagStartIndex !== -1) {
@@ -52,17 +53,18 @@ app.use(express.urlencoded({ extended: true }));
               if (lastBracketIndex > tagContentStart) {
                 const jsonStr = aboutUs.substring(tagContentStart, lastBracketIndex).trim();
                 try {
-                  const extra = JSON.parse(jsonStr);
-                  return {
-                    apiKey: extra.pakasir_api_key || defaultApiKey,
-                    project: extra.pakasir_merchant_id || defaultProject,
-                    enabled: !!extra.pakasir_enabled
-                  };
+                  extra = JSON.parse(jsonStr);
                 } catch (e) {
                   console.error('Error parsing metadata JSON for Pakasir:', e);
                 }
               }
             }
+
+            const apiKey = settings.pakasir_api_key || extra.pakasir_api_key || defaultApiKey;
+            const project = settings.pakasir_merchant_id || settings.pakasir_project_name || extra.pakasir_merchant_id || defaultProject;
+            const enabled = settings.pakasir_enabled !== undefined ? !!settings.pakasir_enabled : (extra.pakasir_enabled !== undefined ? !!extra.pakasir_enabled : true);
+
+            return { apiKey, project, enabled };
           }
         }
       } catch (err) {

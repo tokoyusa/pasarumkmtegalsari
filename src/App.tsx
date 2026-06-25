@@ -230,7 +230,9 @@ export default function App() {
       }
 
       if (json.success && json.data) {
-        return json.data;
+        // Normalize response so it always has the payment object, matching the client-side fallback
+        const paymentData = json.data.payment || json.data;
+        return { payment: paymentData };
       }
       if (json.error || json.message) {
         throw new Error(json.message || 'Server error');

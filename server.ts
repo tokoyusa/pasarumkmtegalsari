@@ -29,15 +29,34 @@ app.use(express.urlencoded({ extended: true }));
     const sandboxProject = "pasar-tegalsari";
 
     // Detect if server-side environment variables have custom configurations (e.g., set on Vercel Dashboard)
-    const envApiKey = process.env.PAKASIR_API_KEY || process.env.PAKASIR_APIKEY || process.env.API_KEY_PAKASIR;
-    const envProjectName = process.env.PAKASIR_PROJECT_NAME || process.env.PAKASIR_MERCHANT_ID || process.env.PAKASIR_MERCHAND_ID || process.env.PAKASIR_PROJECT || process.env.PAKASIR_MERCHANT || process.env.PAKASIR_MERCHAND;
+    // Support all common permutations, prefixes, and common typos of Pakasir and General API environment variables
+    const envApiKey = process.env.PAKASIR_API_KEY || 
+                      process.env.PAKASIR_APIKEY || 
+                      process.env.API_KEY_PAKASIR || 
+                      process.env.PAKASIR_KEY || 
+                      process.env.API_KEY || 
+                      process.env.APIKEY;
+
+    const envProjectName = process.env.PAKASIR_PROJECT_NAME || 
+                           process.env.PAKASIR_MERCHANT_ID || 
+                           process.env.PAKASIR_MERCHAND_ID || 
+                           process.env.PAKASIR_PROJECT || 
+                           process.env.PAKASIR_MERCHANT || 
+                           process.env.PAKASIR_MERCHAND || 
+                           process.env.MERCHANT_ID || 
+                           process.env.MERCHAND_ID || 
+                           process.env.PROJECT_NAME || 
+                           process.env.PROJECT_ID || 
+                           process.env.PROJECT || 
+                           process.env.MERCHANT;
 
     const hasServerCustomConfig = envApiKey && envApiKey.trim() !== "" && envApiKey !== sandboxKey;
 
-    // If the server-side environment has custom configurations (from Vercel or local .env), ALWAYS prioritize them
-    // unless the client explicitly passes a different custom key (i.e. not sandbox and not xxx123)
+    // Detect if the client passed a genuine, non-sandbox and non-empty custom API key
     const isClientCustom = clientApiKey && clientApiKey !== sandboxKey && clientApiKey !== "xxx123" && clientApiKey.trim() !== "";
     
+    // If the server-side environment has custom configurations (from Vercel or local .env), ALWAYS prioritize them
+    // unless the client explicitly passes a different custom key (i.e. not sandbox and not xxx123)
     if (hasServerCustomConfig && !isClientCustom) {
       return {
         apiKey: envApiKey,
@@ -55,8 +74,8 @@ app.use(express.urlencoded({ extended: true }));
       };
     }
 
-    let finalProject = clientProject || envProjectName || sandboxProject;
-    let finalApiKey = (clientApiKey && clientApiKey !== "xxx123") ? clientApiKey : (envApiKey || sandboxKey);
+    let finalProject = envProjectName || clientProject || sandboxProject;
+    let finalApiKey = envApiKey || (clientApiKey && clientApiKey !== "xxx123" ? clientApiKey : sandboxKey);
     let finalEnabled = true;
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -136,12 +155,23 @@ app.use(express.urlencoded({ extended: true }));
             ? `${config.apiKey.slice(0, 3)}...${config.apiKey.slice(-3)}` 
             : "***")
         : "none";
+
+      // Safely scan all active environment variables to report keys that are set
+      const detectedEnvKeys = Object.keys(process.env).filter(key => {
+        const k = key.toUpperCase();
+        return (k.includes("PAKASIR") || k.includes("MERCHANT") || k.includes("MERCHAND") || k === "API_KEY" || k === "APIKEY" || k === "PROJECT_ID" || k === "PROJECT_NAME" || k === "PROJECT") &&
+               process.env[key] && process.env[key]!.trim() !== "";
+      });
+
       return res.json({
         success: true,
         project: config.project,
         enabled: config.enabled,
         apiKeyMasked: maskedKey,
-        apiKeyLength: config.apiKey ? config.apiKey.length : 0
+        apiKeyLength: config.apiKey ? config.apiKey.length : 0,
+        vercelEnvironment: !!process.env.VERCEL,
+        nodeEnv: process.env.NODE_ENV,
+        envKeysDetectedOnServer: detectedEnvKeys
       });
     } catch (err: any) {
       return res.json({ success: false, error: err.message });

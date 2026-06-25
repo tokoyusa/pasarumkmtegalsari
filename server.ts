@@ -24,119 +24,111 @@ app.use(express.urlencoded({ extended: true }));
   // --- PAKASIR PAYMENT GATEWAY PROXY ENDPOINTS ---
 
   // Helper function to fetch dynamic Pakasir configuration from Supabase, client overrides, or environment
+  // Helper function to fetch dynamic Pakasir configuration from Supabase, client overrides, or environment
   async function getPakasirConfig(clientProject?: string, clientApiKey?: string) {
     const sandboxKey = "rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE";
     const sandboxProject = "pasar-tegalsari";
 
-    // Detect if server-side environment variables have custom configurations (e.g., set on Vercel Dashboard)
-    // Support all common permutations, prefixes, and common typos of Pakasir and General API environment variables
+    // Strictly check SPECIFIC Pakasir environment variables.
+    // NEVER fall back to generic "API_KEY", "PROJECT_ID", or "PROJECT_NAME" because they clash with the host container!
     const envApiKey = process.env.PAKASIR_API_KEY || 
                       process.env.PAKASIR_APIKEY || 
                       process.env.API_KEY_PAKASIR || 
-                      process.env.PAKASIR_KEY || 
-                      process.env.API_KEY || 
-                      process.env.APIKEY;
+                      process.env.PAKASIR_KEY;
 
     const envProjectName = process.env.PAKASIR_PROJECT_NAME || 
                            process.env.PAKASIR_MERCHANT_ID || 
                            process.env.PAKASIR_MERCHAND_ID || 
                            process.env.PAKASIR_PROJECT || 
                            process.env.PAKASIR_MERCHANT || 
-                           process.env.PAKASIR_MERCHAND || 
-                           process.env.MERCHANT_ID || 
-                           process.env.MERCHAND_ID || 
-                           process.env.PROJECT_NAME || 
-                           process.env.PROJECT_ID || 
-                           process.env.PROJECT || 
-                           process.env.MERCHANT;
+                           process.env.PAKASIR_MERCHAND;
 
-    const hasServerCustomConfig = envApiKey && envApiKey.trim() !== "" && envApiKey !== sandboxKey;
+    // Detect if client provided a genuine, non-sandbox, non-placeholder and non-empty custom API key
+    const isClientCustom = clientApiKey && 
+                           clientApiKey !== sandboxKey && 
+                           clientApiKey !== "xxx123" && 
+                           clientApiKey.trim() !== "";
 
-    // Detect if the client passed a genuine, non-sandbox and non-empty custom API key
-    const isClientCustom = clientApiKey && clientApiKey !== sandboxKey && clientApiKey !== "xxx123" && clientApiKey.trim() !== "";
-    
-    // If the server-side environment has custom configurations (from Vercel or local .env), ALWAYS prioritize them
-    // unless the client explicitly passes a different custom key (i.e. not sandbox and not xxx123)
-    if (hasServerCustomConfig && !isClientCustom) {
-      return {
-        apiKey: envApiKey,
-        project: envProjectName || sandboxProject,
-        enabled: true
-      };
-    }
-
-    // If client provided a specific custom key (different from sandbox), use that (for dynamic setups)
+    // If client supplied custom genuine credentials, ALWAYS prioritize them!
     if (clientProject && isClientCustom) {
       return {
-        apiKey: clientApiKey,
-        project: clientProject,
+        apiKey: clientApiKey.trim(),
+        project: clientProject.trim(),
         enabled: true
       };
     }
 
-    let finalProject = envProjectName || clientProject || sandboxProject;
-    let finalApiKey = envApiKey || (clientApiKey && clientApiKey !== "xxx123" ? clientApiKey : sandboxKey);
+    // Otherwise, we load from Supabase or fallback to environment or sandbox
+    let finalProject = sandboxProject;
+    let finalApiKey = sandboxKey;
     let finalEnabled = true;
 
+    // First attempt: Check specific server environment variables (if any are set)
+    if (envApiKey && envApiKey.trim() !== "") {
+      finalApiKey = envApiKey.trim();
+    }
+    if (envProjectName && envProjectName.trim() !== "") {
+      finalProject = envProjectName.trim();
+    }
+
+    // Second attempt: Fetch from database (Supabase) to get live merchant config
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
     const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-    // Only query database if client did not supply BOTH project and api_key or if client is using default sandbox key
-    if (!clientProject || !clientApiKey || clientApiKey === "xxx123" || clientApiKey === sandboxKey) {
-      if (supabaseUrl && supabaseKey) {
-        try {
-          const response = await fetch(`${supabaseUrl}/rest/v1/app_settings?id=eq.global_settings&select=*`, {
-            headers: {
-              "apikey": supabaseKey,
-              "Authorization": `Bearer ${supabaseKey}`
-            }
-          });
-          if (response.ok) {
-            const data = await response.json();
-            if (data && data.length > 0) {
-              const settings = data[0];
-              let extra: any = {};
-              let aboutUs = settings.about_us || '';
-              const tagStartIndex = aboutUs.lastIndexOf('[METADATA_JSON:');
-              if (tagStartIndex !== -1) {
-                const tagContentStart = tagStartIndex + '[METADATA_JSON:'.length;
-                const lastBracketIndex = aboutUs.lastIndexOf(']');
-                if (lastBracketIndex > tagContentStart) {
-                  const jsonStr = aboutUs.substring(tagContentStart, lastBracketIndex).trim();
-                  try {
-                    extra = JSON.parse(jsonStr);
-                  } catch (e) {
-                    console.error('Error parsing metadata JSON for Pakasir:', e);
-                  }
+    if (supabaseUrl && supabaseKey) {
+      try {
+        const response = await fetch(`${supabaseUrl}/rest/v1/app_settings?id=eq.global_settings&select=*`, {
+          headers: {
+            "apikey": supabaseKey,
+            "Authorization": `Bearer ${supabaseKey}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.length > 0) {
+            const settings = data[0];
+            let extra: any = {};
+            let aboutUs = settings.about_us || '';
+            const tagStartIndex = aboutUs.lastIndexOf('[METADATA_JSON:');
+            if (tagStartIndex !== -1) {
+              const tagContentStart = tagStartIndex + '[METADATA_JSON:'.length;
+              const lastBracketIndex = aboutUs.lastIndexOf(']');
+              if (lastBracketIndex > tagContentStart) {
+                const jsonStr = aboutUs.substring(tagContentStart, lastBracketIndex).trim();
+                try {
+                  extra = JSON.parse(jsonStr);
+                } catch (e) {
+                  console.error('Error parsing metadata JSON for Pakasir in server.ts:', e);
                 }
               }
+            }
 
-              const apiKey = settings.pakasir_api_key || extra.pakasir_api_key;
-              const project = settings.pakasir_merchant_id || settings.pakasir_project_name || extra.pakasir_merchant_id;
-              
-              // If we found a non-sandbox, non-placeholder key in DB, prioritize it
-              if (apiKey && apiKey !== "xxx123" && apiKey !== sandboxKey) {
-                finalApiKey = apiKey;
-              } else if (hasServerCustomConfig) {
-                // If DB is empty or sandbox, but server has custom env key, use server env key
-                finalApiKey = envApiKey;
-              }
+            const dbApiKey = settings.pakasir_api_key || extra.pakasir_api_key;
+            const dbProject = settings.pakasir_merchant_id || settings.pakasir_project_name || extra.pakasir_merchant_id;
 
-              if (project && project !== sandboxProject) {
-                finalProject = project;
-              } else if (envProjectName) {
-                finalProject = envProjectName;
-              }
+            // If we found non-sandbox, non-placeholder credentials in the database, prioritize them
+            if (dbApiKey && dbApiKey !== "xxx123" && dbApiKey !== sandboxKey && dbApiKey.trim() !== "") {
+              finalApiKey = dbApiKey.trim();
+            }
+            if (dbProject && dbProject !== sandboxProject && dbProject.trim() !== "") {
+              finalProject = dbProject.trim();
+            }
 
-              finalEnabled = settings.pakasir_enabled !== undefined ? !!settings.pakasir_enabled : (extra.pakasir_enabled !== undefined ? !!extra.pakasir_enabled : true);
-
-              return { apiKey: finalApiKey, project: finalProject, enabled: finalEnabled };
+            if (settings.pakasir_enabled !== undefined) {
+              finalEnabled = !!settings.pakasir_enabled;
+            } else if (extra.pakasir_enabled !== undefined) {
+              finalEnabled = !!extra.pakasir_enabled;
             }
           }
-        } catch (err) {
-          console.error('Error fetching app settings for Pakasir proxy:', err);
         }
+      } catch (err) {
+        console.error('Error fetching app settings for Pakasir proxy:', err);
       }
+    }
+
+    // If client supplied project name but no api key (or sandbox key), and we didn't resolve a real dbApiKey, use clientProject
+    if (clientProject && clientProject !== sandboxProject && finalProject === sandboxProject) {
+      finalProject = clientProject;
     }
 
     return {

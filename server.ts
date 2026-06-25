@@ -220,6 +220,11 @@ app.use(express.urlencoded({ extended: true }));
         });
       }
 
+      // Strip any dummy sandbox prefix from the payment number so that QR codes are scannable and valid
+      if (data && data.payment && typeof data.payment.payment_number === "string") {
+        data.payment.payment_number = data.payment.payment_number.replace(/^THIS\.IS\.JUST\.AN\.EXAMPLE\.FOR\.SANDBOX\./gi, "");
+      }
+
       return res.json({ success: true, data });
     } catch (err: any) {
       console.error("[Pakasir Proxy Error] Failed to create transaction:", err.message);

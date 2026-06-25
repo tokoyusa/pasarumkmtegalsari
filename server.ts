@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 
 // Load environment variables
@@ -24,58 +23,81 @@ app.use(express.urlencoded({ extended: true }));
 
   // --- PAKASIR PAYMENT GATEWAY PROXY ENDPOINTS ---
 
-  // Helper function to fetch dynamic Pakasir configuration from Supabase or environment
-  async function getPakasirConfig() {
+  // Helper function to fetch dynamic Pakasir configuration from Supabase, client overrides, or environment
+  async function getPakasirConfig(clientProject?: string, clientApiKey?: string) {
     const defaultApiKey = process.env.PAKASIR_API_KEY || "rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE";
     const defaultProject = process.env.PAKASIR_PROJECT_NAME || "pasar-tegalsari";
+
+    // If both credentials are provided by the client, use them directly (perfect for serverless Vercel fallback)
+    if (clientProject && clientApiKey && clientApiKey !== "xxx123") {
+      return {
+        apiKey: clientApiKey,
+        project: clientProject,
+        enabled: true
+      };
+    }
+
+    let finalProject = clientProject || defaultProject;
+    let finalApiKey = clientApiKey && clientApiKey !== "xxx123" ? clientApiKey : defaultApiKey;
+    let finalEnabled = true;
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
     const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const response = await fetch(`${supabaseUrl}/rest/v1/app_settings?id=eq.global_settings&select=*`, {
-          headers: {
-            "apikey": supabaseKey,
-            "Authorization": `Bearer ${supabaseKey}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.length > 0) {
-            const settings = data[0];
-            let extra: any = {};
-            let aboutUs = settings.about_us || '';
-            const tagStartIndex = aboutUs.lastIndexOf('[METADATA_JSON:');
-            if (tagStartIndex !== -1) {
-              const tagContentStart = tagStartIndex + '[METADATA_JSON:'.length;
-              const lastBracketIndex = aboutUs.lastIndexOf(']');
-              if (lastBracketIndex > tagContentStart) {
-                const jsonStr = aboutUs.substring(tagContentStart, lastBracketIndex).trim();
-                try {
-                  extra = JSON.parse(jsonStr);
-                } catch (e) {
-                  console.error('Error parsing metadata JSON for Pakasir:', e);
+    // Only query database if client did not supply BOTH project and api_key
+    if (!clientProject || !clientApiKey || clientApiKey === "xxx123") {
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const response = await fetch(`${supabaseUrl}/rest/v1/app_settings?id=eq.global_settings&select=*`, {
+            headers: {
+              "apikey": supabaseKey,
+              "Authorization": `Bearer ${supabaseKey}`
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.length > 0) {
+              const settings = data[0];
+              let extra: any = {};
+              let aboutUs = settings.about_us || '';
+              const tagStartIndex = aboutUs.lastIndexOf('[METADATA_JSON:');
+              if (tagStartIndex !== -1) {
+                const tagContentStart = tagStartIndex + '[METADATA_JSON:'.length;
+                const lastBracketIndex = aboutUs.lastIndexOf(']');
+                if (lastBracketIndex > tagContentStart) {
+                  const jsonStr = aboutUs.substring(tagContentStart, lastBracketIndex).trim();
+                  try {
+                    extra = JSON.parse(jsonStr);
+                  } catch (e) {
+                    console.error('Error parsing metadata JSON for Pakasir:', e);
+                  }
                 }
               }
+
+              const apiKey = settings.pakasir_api_key || extra.pakasir_api_key;
+              const project = settings.pakasir_merchant_id || settings.pakasir_project_name || extra.pakasir_merchant_id;
+              
+              if (apiKey && apiKey !== "xxx123") {
+                finalApiKey = apiKey;
+              }
+              if (project) {
+                finalProject = project;
+              }
+              finalEnabled = settings.pakasir_enabled !== undefined ? !!settings.pakasir_enabled : (extra.pakasir_enabled !== undefined ? !!extra.pakasir_enabled : true);
+
+              return { apiKey: finalApiKey, project: finalProject, enabled: finalEnabled };
             }
-
-            const apiKey = settings.pakasir_api_key || extra.pakasir_api_key || defaultApiKey;
-            const project = settings.pakasir_merchant_id || settings.pakasir_project_name || extra.pakasir_merchant_id || defaultProject;
-            const enabled = settings.pakasir_enabled !== undefined ? !!settings.pakasir_enabled : (extra.pakasir_enabled !== undefined ? !!extra.pakasir_enabled : true);
-
-            return { apiKey, project, enabled };
           }
+        } catch (err) {
+          console.error('Error fetching app settings for Pakasir proxy:', err);
         }
-      } catch (err) {
-        console.error('Error fetching app settings for Pakasir proxy:', err);
       }
     }
 
     return {
-      apiKey: defaultApiKey,
-      project: defaultProject,
-      enabled: true
+      apiKey: finalApiKey,
+      project: finalProject,
+      enabled: finalEnabled
     };
   }
 
@@ -102,13 +124,13 @@ app.use(express.urlencoded({ extended: true }));
 
   // API: Transaction create proxy
   app.post("/api/pakasir/create", async (req, res) => {
-    const { method, order_id, amount } = req.body;
+    const { method, order_id, amount, project, api_key } = req.body;
     if (!method || !order_id || !amount) {
       return res.status(400).json({ success: false, message: "Missing required parameters: method, order_id, amount" });
     }
 
     try {
-      const config = await getPakasirConfig();
+      const config = await getPakasirConfig(project, api_key);
       console.log(`[Pakasir Proxy] Creating transaction for order ${order_id}, method: ${method}, project: ${config.project}`);
 
       const response = await fetch(`https://app.pakasir.com/api/transactioncreate/${method}`, {
@@ -142,13 +164,13 @@ app.use(express.urlencoded({ extended: true }));
 
   // API: Payment simulation proxy
   app.post("/api/pakasir/simulate", async (req, res) => {
-    const { order_id, amount } = req.body;
+    const { order_id, amount, project, api_key } = req.body;
     if (!order_id || !amount) {
       return res.status(400).json({ success: false, message: "Missing required parameters: order_id, amount" });
     }
 
     try {
-      const config = await getPakasirConfig();
+      const config = await getPakasirConfig(project, api_key);
       console.log(`[Pakasir Proxy] Simulating payment for order ${order_id}, amount: ${amount}, project: ${config.project}`);
 
       const response = await fetch(`https://app.pakasir.com/api/paymentsimulation`, {
@@ -180,13 +202,13 @@ app.use(express.urlencoded({ extended: true }));
 
   // API: Transaction Cancel proxy
   app.post("/api/pakasir/cancel", async (req, res) => {
-    const { order_id, amount } = req.body;
+    const { order_id, amount, project, api_key } = req.body;
     if (!order_id || !amount) {
       return res.status(400).json({ success: false, message: "Missing required parameters: order_id, amount" });
     }
 
     try {
-      const config = await getPakasirConfig();
+      const config = await getPakasirConfig(project, api_key);
       const response = await fetch(`https://app.pakasir.com/api/transactioncancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -208,13 +230,13 @@ app.use(express.urlencoded({ extended: true }));
 
   // API: Disbursement Create proxy (Pencairan Saldo Otomatis)
   app.post("/api/pakasir/disbursement/create", async (req, res) => {
-    const { wdId, amount, bank_name, bank_account_number, bank_account_name } = req.body;
+    const { wdId, amount, bank_name, bank_account_number, bank_account_name, project, api_key } = req.body;
     if (!wdId || !amount || !bank_name || !bank_account_number || !bank_account_name) {
       return res.status(400).json({ success: false, message: "Missing required parameters for disbursement" });
     }
 
     try {
-      const config = await getPakasirConfig();
+      const config = await getPakasirConfig(project, api_key);
       console.log(`[Pakasir Proxy] Creating disbursement/withdraw for ${wdId}, bank: ${bank_name}, amount: ${amount}`);
 
       // Map bank names to lowercase codes
@@ -517,7 +539,9 @@ app.use(express.urlencoded({ extended: true }));
 
     // 3. Proactively check Pakasir status API directly using transactiondetail GET API
     try {
-      const config = await getPakasirConfig();
+      const clientProject = req.query.project as string | undefined;
+      const clientApiKey = req.query.api_key as string | undefined;
+      const config = await getPakasirConfig(clientProject, clientApiKey);
       console.log(`[Pakasir Status Checker] Proactively querying Pakasir Detail API for order ${order_id} with amount ${amount}...`);
       
       const queryParams = new URLSearchParams({
@@ -1446,6 +1470,7 @@ async function startServer() {
   if (!process.env.VERCEL) {
     // Define Vite middleware configuration or Static files
     if (process.env.NODE_ENV !== "production") {
+      const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",

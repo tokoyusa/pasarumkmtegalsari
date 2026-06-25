@@ -25,11 +25,29 @@ app.use(express.urlencoded({ extended: true }));
 
   // Helper function to fetch dynamic Pakasir configuration from Supabase, client overrides, or environment
   async function getPakasirConfig(clientProject?: string, clientApiKey?: string) {
-    const defaultApiKey = process.env.PAKASIR_API_KEY || "rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE";
-    const defaultProject = process.env.PAKASIR_PROJECT_NAME || "pasar-tegalsari";
+    const sandboxKey = "rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE";
+    const sandboxProject = "pasar-tegalsari";
 
-    // If both credentials are provided by the client, use them directly (perfect for serverless Vercel fallback)
-    if (clientProject && clientApiKey && clientApiKey !== "xxx123") {
+    // Detect if server-side environment variables have custom configurations (e.g., set on Vercel Dashboard)
+    const envApiKey = process.env.PAKASIR_API_KEY;
+    const envProjectName = process.env.PAKASIR_PROJECT_NAME || process.env.PAKASIR_MERCHANT_ID || process.env.PAKASIR_PROJECT || process.env.PAKASIR_MERCHANT;
+
+    const hasServerCustomConfig = envApiKey && envApiKey.trim() !== "" && envApiKey !== sandboxKey;
+
+    // If the server-side environment has custom configurations (from Vercel or local .env), ALWAYS prioritize them
+    // unless the client explicitly passes a different custom key (i.e. not sandbox and not xxx123)
+    const isClientCustom = clientApiKey && clientApiKey !== sandboxKey && clientApiKey !== "xxx123" && clientApiKey.trim() !== "";
+    
+    if (hasServerCustomConfig && !isClientCustom) {
+      return {
+        apiKey: envApiKey,
+        project: envProjectName || sandboxProject,
+        enabled: true
+      };
+    }
+
+    // If client provided a specific custom key (different from sandbox), use that (for dynamic setups)
+    if (clientProject && isClientCustom) {
       return {
         apiKey: clientApiKey,
         project: clientProject,
@@ -37,15 +55,15 @@ app.use(express.urlencoded({ extended: true }));
       };
     }
 
-    let finalProject = clientProject || defaultProject;
-    let finalApiKey = clientApiKey && clientApiKey !== "xxx123" ? clientApiKey : defaultApiKey;
+    let finalProject = clientProject || envProjectName || sandboxProject;
+    let finalApiKey = (clientApiKey && clientApiKey !== "xxx123") ? clientApiKey : (envApiKey || sandboxKey);
     let finalEnabled = true;
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
     const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-    // Only query database if client did not supply BOTH project and api_key
-    if (!clientProject || !clientApiKey || clientApiKey === "xxx123") {
+    // Only query database if client did not supply BOTH project and api_key or if client is using default sandbox key
+    if (!clientProject || !clientApiKey || clientApiKey === "xxx123" || clientApiKey === sandboxKey) {
       if (supabaseUrl && supabaseKey) {
         try {
           const response = await fetch(`${supabaseUrl}/rest/v1/app_settings?id=eq.global_settings&select=*`, {
@@ -77,12 +95,20 @@ app.use(express.urlencoded({ extended: true }));
               const apiKey = settings.pakasir_api_key || extra.pakasir_api_key;
               const project = settings.pakasir_merchant_id || settings.pakasir_project_name || extra.pakasir_merchant_id;
               
-              if (apiKey && apiKey !== "xxx123") {
+              // If we found a non-sandbox, non-placeholder key in DB, prioritize it
+              if (apiKey && apiKey !== "xxx123" && apiKey !== sandboxKey) {
                 finalApiKey = apiKey;
+              } else if (hasServerCustomConfig) {
+                // If DB is empty or sandbox, but server has custom env key, use server env key
+                finalApiKey = envApiKey;
               }
-              if (project) {
+
+              if (project && project !== sandboxProject) {
                 finalProject = project;
+              } else if (envProjectName) {
+                finalProject = envProjectName;
               }
+
               finalEnabled = settings.pakasir_enabled !== undefined ? !!settings.pakasir_enabled : (extra.pakasir_enabled !== undefined ? !!extra.pakasir_enabled : true);
 
               return { apiKey: finalApiKey, project: finalProject, enabled: finalEnabled };

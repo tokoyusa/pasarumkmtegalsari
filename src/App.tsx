@@ -46,7 +46,8 @@ import {
   UploadCloud,
   Package,
   Award,
-  CreditCard
+  CreditCard,
+  ExternalLink
 } from 'lucide-react';
 
 export default function App() {
@@ -242,8 +243,8 @@ export default function App() {
     }
 
     // 2. Client-side direct call fallback (using appSettings credentials)
-    const apiKey = appSettings?.pakasir_api_key;
-    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'depodomain';
+    const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
+    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
     const isEnabled = appSettings?.pakasir_enabled;
 
     if (isEnabled && apiKey && apiKey !== 'xxx123') {
@@ -313,8 +314,8 @@ export default function App() {
     }
 
     // Direct check fallback
-    const apiKey = appSettings?.pakasir_api_key;
-    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'depodomain';
+    const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
+    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
     const isEnabled = appSettings?.pakasir_enabled;
 
     if (isEnabled && apiKey && apiKey !== 'xxx123') {
@@ -2004,6 +2005,19 @@ export default function App() {
                             Pindai QRIS di atas dengan e-wallet atau aplikasi m-banking pilihan Anda.
                           </div>
 
+                          {/* Direct official link button fallback */}
+                          <div className="w-full">
+                            <a
+                              href={`https://app.pakasir.com/pay/${appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari'}/${Math.round(upgradeActivePayment.original_amount || upgradeActivePayment.amount)}?order_id=${upgradeActivePayment.order_id}&redirect=${encodeURIComponent(window.location.origin)}&qris_only=1`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full py-1.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center text-[10px]"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              Bayar via Halaman Resmi (Rekomendasi)
+                            </a>
+                          </div>
+
                           <div className="bg-white p-2.5 border rounded-lg w-full text-xs text-slate-700 space-y-1 text-left font-mono">
                             <div className="flex justify-between">
                               <span className="text-slate-500">Invoice ID:</span>
@@ -3116,6 +3130,19 @@ export default function App() {
                               Silakan scan kode QRIS diatas dengan e-wallet (GoPay, OVO, Dana) atau Mobile Banking.
                             </div>
 
+                            {/* Direct official link button fallback */}
+                            <div className="w-full">
+                              <a
+                                href={`https://app.pakasir.com/pay/${appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari'}/${Math.round(vendorMembActivePayment.original_amount || vendorMembActivePayment.amount)}?order_id=${vendorMembActivePayment.order_id}&redirect=${encodeURIComponent(window.location.origin)}&qris_only=1`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center text-[10px]"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                Bayar Lewat Halaman Resmi (Rekomendasi)
+                              </a>
+                            </div>
+
                             <div className="bg-slate-50 p-2.5 rounded-lg border w-full space-y-1">
                               <div className="flex justify-between text-[10px]">
                                 <span className="text-slate-500">Invoice ID:</span>
@@ -4219,6 +4246,22 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
+                {/* Direct Pakasir URL Integration Button as an alternative option */}
+                <div className="pt-2">
+                  <a
+                    href={`https://app.pakasir.com/pay/${appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari'}/${Math.round(activePakasirPayment.original_amount || activePakasirPayment.amount)}?order_id=${activePakasirPayment.order_id}&redirect=${encodeURIComponent(window.location.origin)}${activePakasirPayment.payment_method === 'qris' ? '&qris_only=1' : ''}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer text-center text-xs"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Buka Halaman Pembayaran Resmi (Rekomendasi)
+                  </a>
+                  <p className="text-[9.5px] text-slate-500 text-center mt-1.5 leading-relaxed">
+                    *Gunakan tombol di atas jika Anda ingin membayar langsung dari gerbang pembayaran resmi Pakasir dengan opsi e-wallet / m-banking lengkap.
+                  </p>
+                </div>
               </div>
 
               {/* Expired info & Sandbox simulator */}

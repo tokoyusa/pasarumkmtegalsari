@@ -352,17 +352,9 @@ export default function App() {
       }
     }
 
-    // Check if the user actually has a real Pakasir config enabled and filled.
-    // If yes, we must NOT auto-complete/simulate success! We return false (still pending/unpaid).
-    const isConfigured = appSettings?.pakasir_enabled && appSettings?.pakasir_api_key && appSettings?.pakasir_api_key !== 'xxx123' && appSettings?.pakasir_api_key.trim() !== '';
-    if (isConfigured) {
-      console.log('[Pakasir Status] Real mode active. Return false (pending).');
-      return false;
-    }
-
-    // Sandbox/simulation mode - immediately mark complete
-    console.log('[Pakasir Simulation] Simulating successful payment verification for', orderId);
-    return true;
+    // Keep the modal open (return false) until the server status check or manual simulator updates it
+    console.log('[Pakasir Status] Transaction status checked, remaining in pending state until paid or simulated.');
+    return false;
   };
 
   const loadRoProvinces = async () => {

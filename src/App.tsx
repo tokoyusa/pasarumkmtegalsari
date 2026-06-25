@@ -215,12 +215,21 @@ export default function App() {
   };
 
   const handleCreatePakasirTransaction = async (method: string, order_id: string, amount: number) => {
+    const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
+    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
+
     // 1. Attempt using Server API Proxy
     try {
       const res = await fetch('/api/pakasir/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method, order_id, amount })
+        body: JSON.stringify({ 
+          method, 
+          order_id, 
+          amount,
+          project,
+          api_key: apiKey
+        })
       });
       const text = await res.text();
       let json: any = {};
@@ -243,8 +252,6 @@ export default function App() {
     }
 
     // 2. Client-side direct call fallback (using appSettings credentials)
-    const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
-    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
     const isEnabled = appSettings?.pakasir_enabled;
 
     if (isEnabled && apiKey && apiKey !== 'xxx123') {
@@ -297,8 +304,11 @@ export default function App() {
   };
 
   const handleCheckPakasirStatus = async (orderId: string, amount: number) => {
+    const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
+    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
+
     try {
-      const res = await fetch(`/api/pakasir/status/${orderId}?amount=${amount}`);
+      const res = await fetch(`/api/pakasir/status/${orderId}?amount=${amount}&project=${encodeURIComponent(project)}&api_key=${encodeURIComponent(apiKey)}`);
       const text = await res.text();
       let json: any = {};
       try {
@@ -314,8 +324,6 @@ export default function App() {
     }
 
     // Direct check fallback
-    const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
-    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
     const isEnabled = appSettings?.pakasir_enabled;
 
     if (isEnabled && apiKey && apiKey !== 'xxx123') {
@@ -2045,12 +2053,16 @@ export default function App() {
                                     setUpgradePayStatus('paid');
                                     alert('Simulasi pembayaran upgrade sukses (Mode Lokal)!');
                                   } else {
+                                    const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
+                                    const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
                                     await fetch('/api/pakasir/simulate', {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json' },
                                       body: JSON.stringify({
                                         order_id: upgradeActivePayment.order_id,
-                                        amount: upgradeActivePayment.original_amount
+                                        amount: upgradeActivePayment.original_amount,
+                                        project,
+                                        api_key: apiKey
                                       })
                                     });
                                     alert('Simulasi pembayaran upgrade dikirim! Silakan klik "Cek Pembayaran".');
@@ -3166,12 +3178,16 @@ export default function App() {
                                       setVendorMembPayStatus('paid');
                                       alert('Simulasi sukses (Mode Lokal)! Status pembayaran keanggotaan Anda telah diset LUNAS.');
                                     } else {
+                                      const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
+                                      const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
                                       await fetch('/api/pakasir/simulate', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({
                                           order_id: vendorMembActivePayment.order_id,
-                                          amount: vendorMembActivePayment.original_amount
+                                          amount: vendorMembActivePayment.original_amount,
+                                          project,
+                                          api_key: apiKey
                                         })
                                       });
                                       alert('Simulasi pembayaran berhasil dikirim! Silakan klik "Cek Status Pembayaran".');
@@ -4292,12 +4308,16 @@ export default function App() {
                           alert('Simulasi pembayaran sukses berhasil (Mode Lokal)! Status pesanan Anda telah diperbarui.');
                         } else {
                           try {
+                            const apiKey = appSettings?.pakasir_api_key || 'rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE';
+                            const project = appSettings?.pakasir_merchant_id || appSettings?.pakasir_project_name || 'pasar-tegalsari';
                             const res = await fetch('/api/pakasir/simulate', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
                                 order_id: activePakasirPayment.order_id,
-                                amount: activePakasirPayment.original_amount || activePakasirPayment.amount
+                                amount: activePakasirPayment.original_amount || activePakasirPayment.amount,
+                                project,
+                                api_key: apiKey
                               })
                             });
                             const text = await res.text();

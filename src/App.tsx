@@ -252,7 +252,7 @@ export default function App() {
     }
 
     // 2. Client-side direct call fallback (using appSettings credentials)
-    const isEnabled = appSettings?.pakasir_enabled;
+    const isEnabled = appSettings?.pakasir_enabled !== false;
 
     if (isEnabled && apiKey && apiKey !== 'xxx123') {
       try {
@@ -324,7 +324,7 @@ export default function App() {
     }
 
     // Direct check fallback
-    const isEnabled = appSettings?.pakasir_enabled;
+    const isEnabled = appSettings?.pakasir_enabled !== false;
 
     if (isEnabled && apiKey && apiKey !== 'xxx123') {
       try {

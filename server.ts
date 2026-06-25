@@ -12,9 +12,33 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 const app = express();
 const PORT = 3000;
 
-// Body parser limit and configurations
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// 1. Vercel Serverless Path Prefix Normalization Middleware
+// Ensures that on Vercel, requests routed to /api/index.ts retain their /api prefix
+app.use((req, res, next) => {
+  if (process.env.VERCEL) {
+    const originalUrl = req.url || "";
+    if (!originalUrl.startsWith("/api") && originalUrl !== "/") {
+      req.url = "/api" + originalUrl;
+    }
+  }
+  next();
+});
+
+// 2. Custom Safe Body Parser Middleware for Vercel Serverless Functions
+// Prevents requests from hanging when Vercel's gateway has already parsed the body stream.
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === "object") {
+    return next();
+  }
+  express.json()(req, res, next);
+});
+
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === "object") {
+    return next();
+  }
+  express.urlencoded({ extended: true })(req, res, next);
+});
 
 // API health check endpoint
   app.get("/api/health", (req, res) => {
@@ -24,24 +48,32 @@ app.use(express.urlencoded({ extended: true }));
   // --- PAKASIR PAYMENT GATEWAY PROXY ENDPOINTS ---
 
   // Helper function to fetch dynamic Pakasir configuration from Supabase, client overrides, or environment
-  // Helper function to fetch dynamic Pakasir configuration from Supabase, client overrides, or environment
   async function getPakasirConfig(clientProject?: string, clientApiKey?: string) {
     const sandboxKey = "rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE";
     const sandboxProject = "pasar-tegalsari";
 
+    const cleanVal = (val?: string) => {
+      if (!val) return "";
+      let s = val.trim();
+      if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+        s = s.slice(1, -1).trim();
+      }
+      return s;
+    };
+
     // Strictly check SPECIFIC Pakasir environment variables.
     // NEVER fall back to generic "API_KEY", "PROJECT_ID", or "PROJECT_NAME" because they clash with the host container!
-    const envApiKey = process.env.PAKASIR_API_KEY || 
-                      process.env.PAKASIR_APIKEY || 
-                      process.env.API_KEY_PAKASIR || 
-                      process.env.PAKASIR_KEY;
+    const envApiKey = cleanVal(process.env.PAKASIR_API_KEY || 
+                               process.env.PAKASIR_APIKEY || 
+                               process.env.API_KEY_PAKASIR || 
+                               process.env.PAKASIR_KEY);
 
-    const envProjectName = process.env.PAKASIR_PROJECT_NAME || 
-                           process.env.PAKASIR_MERCHANT_ID || 
-                           process.env.PAKASIR_MERCHAND_ID || 
-                           process.env.PAKASIR_PROJECT || 
-                           process.env.PAKASIR_MERCHANT || 
-                           process.env.PAKASIR_MERCHAND;
+    const envProjectName = cleanVal(process.env.PAKASIR_PROJECT_NAME || 
+                                    process.env.PAKASIR_MERCHANT_ID || 
+                                    process.env.PAKASIR_MERCHAND_ID || 
+                                    process.env.PAKASIR_PROJECT || 
+                                    process.env.PAKASIR_MERCHANT || 
+                                    process.env.PAKASIR_MERCHAND);
 
     // Detect if client provided a genuine, non-sandbox, non-placeholder and non-empty custom API key
     const isClientCustom = clientApiKey && 
@@ -64,11 +96,11 @@ app.use(express.urlencoded({ extended: true }));
     let finalEnabled = true;
 
     // First attempt: Check specific server environment variables (if any are set)
-    if (envApiKey && envApiKey.trim() !== "") {
-      finalApiKey = envApiKey.trim();
+    if (envApiKey && envApiKey !== "") {
+      finalApiKey = envApiKey;
     }
-    if (envProjectName && envProjectName.trim() !== "") {
-      finalProject = envProjectName.trim();
+    if (envProjectName && envProjectName !== "") {
+      finalProject = envProjectName;
     }
 
     // Second attempt: Fetch from database (Supabase) to get live merchant config

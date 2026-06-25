@@ -10,15 +10,14 @@ dotenv.config();
 // Bypassing TLS unauthorized rejection ensures reliability in proxy requests.
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  // Body parser limit and configurations
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+// Body parser limit and configurations
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-  // API health check endpoint
+// API health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
@@ -1403,24 +1402,29 @@ async function startServer() {
     }
   });
 
-  // Define Vite middleware configuration or Static files
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+async function startServer() {
+  if (!process.env.VERCEL) {
+    // Define Vite middleware configuration or Static files
+    if (process.env.NODE_ENV !== "production") {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[Express UMKM Server] Running fullstack server on port ${PORT}`);
     });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Express UMKM Server] Running fullstack server on port ${PORT}`);
-  });
 }
 
 startServer();
+
+export default app;

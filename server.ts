@@ -26,8 +26,8 @@ app.use(express.urlencoded({ extended: true }));
 
   // Helper function to fetch dynamic Pakasir configuration from Supabase or environment
   async function getPakasirConfig() {
-    const defaultApiKey = process.env.PAKASIR_API_KEY || "xxx123";
-    const defaultProject = process.env.PAKASIR_PROJECT_NAME || "depodomain";
+    const defaultApiKey = process.env.PAKASIR_API_KEY || "rE24cpoGsJwlDvQ3AnFMRX9SgZsGaVDE";
+    const defaultProject = process.env.PAKASIR_PROJECT_NAME || "pasar-tegalsari";
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
     const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
